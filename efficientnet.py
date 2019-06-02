@@ -55,7 +55,8 @@ class Drop_Connect(nn.Module):
 
 
 #added groups, needed for DWConv
-def conv_layer(ni, nf, ks=3, stride=1,groups=1, zero_bn=False, act=True, eps=1e-03, momentum=0.99):
+#fixed batch norm momentum = 1- Tensorflow value
+def conv_layer(ni, nf, ks=3, stride=1,groups=1, zero_bn=False, act=True, eps=1e-03, momentum=0.01):
     bn = nn.BatchNorm2d(nf, eps=eps, momentum=momentum)
     nn.init.constant_(bn.weight, 0. if zero_bn else 1.)
     layers = [conv(ni, nf, ks, stride=stride, groups=groups), bn]
