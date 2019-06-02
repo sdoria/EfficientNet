@@ -4,10 +4,6 @@ from fastai.callbacks import *
 from fastai.distributed import *
 from fastprogress import fastprogress
 from torchvision.models import *
-#from fastai.vision.models.xresnet import *
-#from fastai.vision.models.xresnet2 import *
-#from fastai.vision.models.presnet import *
-#from xresnet import *
 from efficientnet import *
 import sys
 
