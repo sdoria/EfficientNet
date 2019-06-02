@@ -7,7 +7,12 @@ from functools import partial
 
 __all__ = ['EfficientNet', 'efficientnetB0']
 
-act_fn = nn.ReLU(inplace=True)
+class Swish(nn.Module):
+    def forward(self, x):
+        x = x * torch.sigmoid(x)  #nn.functional.sigmoid is deprecated, use torch.sigmoid instead
+        return x
+
+act_fn = Swish() #nn.ReLU(inplace=True)
 
 
 #added groups, needed for DWConv
