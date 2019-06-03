@@ -5,7 +5,7 @@ from functools import partial
 
 
 
-__all__ = ['EfficientNet', 'efficientnetB0']
+__all__ = ['EfficientNet', 'efficientnetB0','efficientnetB1', 'efficientnetB2', 'efficientnetB3', 'efficientnetB4', 'efficientnetB5', 'efficientnetB6', 'efficientnetB7']
 
 class Swish(nn.Module):
     def forward(self, x):
@@ -143,10 +143,14 @@ class Flatten(nn.Module):
     def forward(self, x): return x.view(x.size(0), -1)
 
 class EfficientNet(nn.Sequential):
-    def __init__(self, channels, repeat, ks, stride, expand, se = None, drop_connect_rate = None,dropout_rate= None, c_in=3, c_out=1000):
+    def __init__(self, channels, repeat, ks, stride, expand, w_mult=1.0, d_mult=1.0, se = None, drop_connect_rate = None,dropout_rate= None, c_in=3, c_out=1000):
 
-
-        stem = [conv_layer(c_in, 32, ks=3 ,stride=2)]
+        
+        repeat = [int(math.ceil(r*d_mult)) for r in repeat]
+        channels = round_filters(channels, w_mult)
+        
+        
+        stem = [conv_layer(c_in, channels[0], ks=3 ,stride=2)]
 
         blocks = []
         #The first block needs to take care of stride and filter size increase.
@@ -157,7 +161,7 @@ class EfficientNet(nn.Sequential):
 
         dropout = nn.Dropout(p=dropout_rate) if dropout_rate else noop
 
-        head = [conv_layer(channels[-1], 1280, ks=1 ,stride=1), nn.AdaptiveAvgPool2d(1), Flatten(), dropout, nn.Linear(1280, c_out)]
+        head = [conv_layer(channels[-2], channels[-1], ks=1 ,stride=1), nn.AdaptiveAvgPool2d(1), Flatten(), dropout, nn.Linear(channels[-1], c_out)]
 
 
         super().__init__(*stem,*blocks, *head)
@@ -165,9 +169,25 @@ class EfficientNet(nn.Sequential):
         init_cnn(self)
 
 
+        
+        
+def round_filters(filters, d_mult, divisor=8, min_depth=None):
+    """ Calculate and round number of filters based on depth multiplier. """
+    
+    if not d_mult:
+        return filters
+    
+    filters = [f*d_mult for f in filters]
+    min_depth = min_depth or divisor
+    new_filters = [max(min_depth, int(f + divisor / 2) // divisor * divisor) for f in filters]
+    # prevent rounding by more than 10%
+    new_filters = [new_filters[i] + (new_filters[i] < 0.9 * filters[i])* divisor for i in range(len(new_filters))]
+    new_filters = [int(f) for f in new_filters]
+    return new_filters
+
 
 me = sys.modules[__name__]
-c = [32,16,24,40,80,112,192,320]
+c = [32,16,24,40,80,112,192,320,1280]
 r = [1,2,2,3,3,4,1]
 ks = [3,3,5,3,5,5,3]
 str = [1,2,2,2,1,2,1]
@@ -177,6 +197,20 @@ do = 0.2
 dc=0.2
 
 
+# base without multipliers and dropout
+setattr(me, 'efficientnet', partial(EfficientNet, channels=c, repeat=r, ks=ks, stride=str, expand=exp, se=se, drop_connect_rate=dc))
 
-setattr(me, 'efficientnetB0', partial(EfficientNet, channels=c, repeat=r, ks=ks, stride=str, expand=exp, se=se, drop_connect_rate=dc, dropout_rate=do))
+# (number, width_coefficient, depth_coefficient, dropout_rate) 
+for n, wm, dm, do in [
+    [ 0, 1.0, 1.0, 0.2],
+    [ 1, 1.0, 1.1, 0.2],
+    [ 2, 1.1, 1.2, 0.3],
+    [ 3, 1.2, 1.4, 0.3],
+    [ 4, 1.4, 1.8, 0.4],
+    [ 5, 1.6, 2.2, 0.4],
+    [ 6, 1.8, 2.6, 0.5],
+    [ 7, 2.0, 3.1, 0.5],
+]:
+    name = f'efficientnetB{n}'
+    setattr(me, name, partial(efficientnet, d_mult=dm, w_mult=wm, dropout_rate=do))
 
