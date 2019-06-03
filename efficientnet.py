@@ -126,7 +126,7 @@ class MBConv(nn.Module):
 
         # Drop connect
 
-        self.dc = noop if drop_connect_rate else Drop_Connect(drop_connect_rate)
+        self.dc = Drop_Connect(drop_connect_rate) if drop_connect_rate else noop
 
 
     def forward(self, x): 
