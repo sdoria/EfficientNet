@@ -42,7 +42,7 @@ class Drop_Connect(nn.Module):
         self.keep_percent = 1.0 - drop_ratio
 
     def forward(self, x):
-        if not self.training():
+        if not self.training:
             return x
 
         batch_size = x.size(0)
