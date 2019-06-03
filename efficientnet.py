@@ -35,6 +35,7 @@ def init_cnn(m):
     for l in m.children(): init_cnn(l)
 
 
+# not compatible with fp16 training        
 class Drop_Connect(nn.Module):
     """create a tensor mask and apply to inputs, for removing drop_ratio % of weights"""
     def __init__(self, drop_ratio=0):
@@ -47,11 +48,23 @@ class Drop_Connect(nn.Module):
 
         batch_size = x.size(0)
         random_tensor = self.keep_percent
-        random_tensor += torch.rand([batch_size, 1, 1, 1], dtype=x.dtype)
+        random_tensor += torch.rand([batch_size, 1, 1, 1], dtype=x.dtype,device=x.device)   #dtype is causing issues with fp16 training
         binary_tensor = torch.floor(random_tensor)
         output = x / self.keep_percent * binary_tensor
 
         return output
+    
+    
+def drop_connect(inputs, p, training):
+    """ Drop connect. """
+    if not training: return inputs
+    batch_size = inputs.shape[0]
+    keep_prob = 1 - p
+    random_tensor = keep_prob
+    random_tensor += torch.rand([batch_size, 1, 1, 1], dtype=inputs.dtype,device=inputs.device)  # uniform [0,1)
+    binary_tensor = torch.floor(random_tensor)
+    output = inputs / keep_prob * binary_tensor
+    return output
 
 
 #added groups, needed for DWConv
@@ -126,7 +139,8 @@ class MBConv(nn.Module):
 
         # Drop connect
 
-        self.dc = Drop_Connect(drop_connect_rate) if drop_connect_rate else noop
+        #self.dc = Drop_Connect(drop_connect_rate) if drop_connect_rate else noop
+        self.dc = partial(drop_connect,p=drop_connect_rate, training=self.training) if drop_connect_rate else noop
 
 
     def forward(self, x): 
