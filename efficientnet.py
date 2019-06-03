@@ -113,7 +113,7 @@ class MBConv(nn.Module):
         # se ratio applies to ni and not ne
 
 
-        self.se = noop if se else SqueezeEx(ne, ni*se)
+        self.se = SqueezeEx(ne, ni*se) if se else noop
 
         # Output Conv (no relu)
 
