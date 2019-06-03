@@ -70,7 +70,7 @@ class SqueezeEx(nn.Module):
         super().__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
 
-        nf = max(1, int(ns))
+        ns = max(1, int(ns))
         
         layers = [nn.AdaptiveAvgPool2d(1),
                       conv(ni,ns,ks=1,bias=True),
@@ -113,7 +113,7 @@ class MBConv(nn.Module):
         # se ratio applies to ni and not ne
 
 
-        self.se = noop if se else SqueezeEx(ne, ni*se_ratio)
+        self.se = noop if se else SqueezeEx(ne, ni*se)
 
         # Output Conv (no relu)
 
