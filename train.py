@@ -43,8 +43,10 @@ def main(
         #sym: Param("Symmetry for self-attention", int)=0,
         dump: Param("Print model; don't train", int)=0,
         lrfinder: Param("Run learning rate finder; don't train", int)=0,
+        wd: Param("weight decay", float)=1e-5,
         ):
     "Distributed training of Imagenette."
+    
     
     bs_one_gpu = bs
     gpu = setup_distrib(gpu)
@@ -60,7 +62,7 @@ def main(
     lr *= bs_rat
 
     m = globals()[arch]
-    learn = (Learner(data, m(c_out=10), wd=1e-5, opt_func=opt_func,
+    learn = (Learner(data, m(c_out=10), wd=wd, opt_func=opt_func,
              metrics=[accuracy,top_k_accuracy],
              bn_wd=False, true_wd=True,
              loss_func = LabelSmoothingCrossEntropy())
@@ -74,7 +76,7 @@ def main(
     if lrfinder:
         # run learning rate finder
         
-        learn.lr_find(wd=1e-2)
+        learn.lr_find(wd=wd)
         learn.recorder.plot()
     else:
         learn.fit_one_cycle(epochs, lr, div_factor=10, pct_start=0.3)
