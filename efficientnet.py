@@ -146,7 +146,7 @@ class MBConv(nn.Module):
     def forward(self, x): 
         
         out = self.conv_out(self.se(self.dw_conv(self.conv_exp(x))))
-        if self.skip: out = out + self.dc(x)
+        if self.skip: out = self.dc(out) + x
 
 
         return out
