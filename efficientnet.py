@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch,math,sys
 import torch.utils.model_zoo as model_zoo
 from functools import partial
+import torch.nn.functional as F
 
 
 
@@ -15,11 +16,32 @@ class Swish(nn.Module):
 act_fn = Swish() #nn.ReLU(inplace=True)
 
 
+#from https://github.com/lukemelas/EfficientNet-PyTorch/blob/master/efficientnet_pytorch/utils.py
+class Conv2dSamePadding(nn.Conv2d):
+    """ 2D Convolutions like TensorFlow """
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, dilation=1, groups=1, bias=True):
+        super().__init__(in_channels, out_channels, kernel_size, stride, 0, dilation, groups, bias)
+        self.stride = self.stride if len(self.stride) == 2 else [self.stride[0]]*2
+
+    def forward(self, x):
+        ih, iw = x.size()[-2:]
+        kh, kw = self.weight.size()[-2:]
+        sh, sw = self.stride
+        oh, ow = math.ceil(ih / sh), math.ceil(iw / sw)
+        pad_h = max((oh - 1) * self.stride[0] + (kh - 1) * self.dilation[0] + 1 - ih, 0)
+        pad_w = max((ow - 1) * self.stride[1] + (kw - 1) * self.dilation[1] + 1 - iw, 0)
+        if pad_h > 0 or pad_w > 0:
+            x = F.pad(x, [pad_w//2, pad_w - pad_w//2, pad_h//2, pad_h - pad_h//2])
+        return F.conv2d(x, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
+    
 #added groups, needed for DWConv
 #"The configuration when groups == in_channels and out_channels = K * in_channels where K is a positive integer is termed in literature as depthwise convolution."
 
+
+# gotta pick one of the returns for 'same' padding or a simpler ks//2 padding
 def conv(ni, nf, ks=3, stride=1, groups=1, bias=False):
-    return nn.Conv2d(ni, nf, kernel_size=ks, stride=stride, padding=ks//2, groups= groups, bias=bias)
+    #return nn.Conv2d(ni, nf, kernel_size=ks, stride=stride, padding=ks//2, groups= groups, bias=bias)
+    return Conv2dSamePadding(ni, nf, kernel_size=ks, stride=stride, groups= groups, bias=bias)
 
 
 #class noop(nn.Module):
@@ -81,7 +103,7 @@ def conv_layer(ni, nf, ks=3, stride=1,groups=1, zero_bn=False, act=True, eps=1e-
 class SqueezeEx(nn.Module):
     def __init__(self, ni, ns):
         super().__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        
 
         ns = max(1, int(ns))
         
@@ -107,7 +129,7 @@ class MBConv(nn.Module):
 
 
 
-
+        self.drop_connect_rate = drop_connect_rate
         # Expansion (only if expand ratio>1)
 
         ne = ni*expand_ratio
@@ -140,10 +162,12 @@ class MBConv(nn.Module):
         # Drop connect
 
         #self.dc = Drop_Connect(drop_connect_rate) if drop_connect_rate else noop
-        self.dc = partial(drop_connect,p=drop_connect_rate, training=self.training) if drop_connect_rate else noop
+        
 
 
     def forward(self, x): 
+        
+        self.dc = partial(drop_connect,p=self.drop_connect_rate, training=self.training) if self.drop_connect_rate else noop
         
         out = self.conv_out(self.se(self.dw_conv(self.conv_exp(x))))
         if self.skip: out = self.dc(out) + x
